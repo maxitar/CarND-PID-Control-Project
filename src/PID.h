@@ -13,9 +13,10 @@ public:
   /*
   * Coefficients
   */ 
-  double Kp;
-  double Ki;
-  double Kd;
+  double p[3];
+  double& Kp = p[0];
+  double& Ki = p[1];
+  double& Kd = p[2];
 
   /*
   * Constructor

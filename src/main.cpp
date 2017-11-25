@@ -3,6 +3,7 @@
 #include "json.hpp"
 #include "PID.h"
 #include <math.h>
+#include "twiddle.h"
 
 // for convenience
 using json = nlohmann::json;
@@ -38,7 +39,7 @@ int main()
   pid.Init(0., 0., 0.);
   Twiddler twd(pid);
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  h.onMessage([&pid, &twd](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -60,19 +61,24 @@ int main()
           * NOTE: Feel free to play around with the throttle and speed. Maybe use
           * another PID controller to control the speed!
           */
+          if (twd.step(cte)) {
+            std::cout << pid.Kp << " " << pid.Ki << " " << pid.Kd << std::endl;
+            reset(ws);
+            return;
+          }
           pid.UpdateError(cte);
           steer_value = -pid.Kp*pid.p_error - pid.Ki*pid.i_error - pid.Kd*pid.d_error;
           steer_value = (steer_value > 1.) ? 1. : steer_value;
           steer_value = (steer_value < -1.) ? -1. : steer_value;
           
           // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+          // std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = 0.3;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          // std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
