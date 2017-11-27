@@ -36,12 +36,6 @@ int main(int argc, char** argv)
 
   PID pid;
   // TODO: Initialize the pid variable.
-  // pid.Init(0.36, 3.7e-5, 10.4);
-  // pid.Init(0.35, 3.7e-5, 15.4);
-  // pid.Init(0.35, 1.e-5, 30.);
-//  pid.Init(0.25, 1.05e-5, 25.);
-  //pid.Init(0.6, 0.9e-5, 100.);
-  // pid.Init(0.2, 9e-4, 4);
   pid.Init(0.22, 8e-5, 5);
   if (argc == 4) {
     double Kp = std::atof(argv[1]);
@@ -86,13 +80,14 @@ int main(int argc, char** argv)
             cte_100 = 0.;
             std::cout << "I error: " << pid.i_error << std::endl;
           }
+          // Use twiddle tuning
           if (use_twiddle && twd.step(cte)) {
             std::cout << "Kp: " << pid.Kp << " Ki: " << pid.Ki << " Kd: " << pid.Kd << std::endl;
-            med_cte.clear();
             reset(ws);
             return;
           }
-          if (std::fabs(cte) > 2.) {
+          // Use manual tuning
+          if (!use_twiddle && time_step > 1 && std::fabs(cte) > 2.) {
             reset(ws);
             std::cout << "cte: " << cte;
             std::cout << "Kp: " << pid.Kp << " Ki: " << pid.Ki << " Kd: " << pid.Kd << std::endl;
