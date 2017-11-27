@@ -4,6 +4,7 @@
 #include "PID.h"
 #include <math.h>
 #include "twiddle.h"
+#include <cstdlib>
 
 // for convenience
 using json = nlohmann::json;
@@ -29,17 +30,32 @@ std::string hasData(std::string s) {
   return "";
 }
 
-
-int main()
+int main(int argc, char** argv)
 {
   uWS::Hub h;
 
   PID pid;
   // TODO: Initialize the pid variable.
-  pid.Init(0., 0., 0.);
+  // pid.Init(0.36, 3.7e-5, 10.4);
+  // pid.Init(0.35, 3.7e-5, 15.4);
+  // pid.Init(0.35, 1.e-5, 30.);
+//  pid.Init(0.25, 1.05e-5, 25.);
+  //pid.Init(0.6, 0.9e-5, 100.);
+  // pid.Init(0.2, 9e-4, 4);
+  pid.Init(0.22, 8e-5, 5);
+  if (argc == 4) {
+    double Kp = std::atof(argv[1]);
+    double Ki = std::atof(argv[2]);
+    double Kd = std::atof(argv[3]);
+    pid.Init(Kp, Ki, Kd);
+  }
   Twiddler twd(pid);
+  bool use_twiddle = false;
+  double total_speed = 0.;
+  int time_step = 0;
+  double cte_100 = 0.;
 
-  h.onMessage([&pid, &twd](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  h.onMessage([&pid, &twd, &use_twiddle, &total_speed, &time_step, &cte_100](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -61,9 +77,33 @@ int main()
           * NOTE: Feel free to play around with the throttle and speed. Maybe use
           * another PID controller to control the speed!
           */
-          if (twd.step(cte)) {
-            std::cout << pid.Kp << " " << pid.Ki << " " << pid.Kd << std::endl;
+          time_step += 1;
+          total_speed += speed;
+          cte_100 += cte;
+          if (time_step % 100 == 0) {
+            std::cout << "Average speed: " << total_speed/time_step << std::endl;
+            std::cout << "Average cte over the last 100 timesteps: " << cte_100/100 << std::endl;
+            cte_100 = 0.;
+            std::cout << "I error: " << pid.i_error << std::endl;
+          }
+          if (use_twiddle && twd.step(cte)) {
+            std::cout << "Kp: " << pid.Kp << " Ki: " << pid.Ki << " Kd: " << pid.Kd << std::endl;
+            med_cte.clear();
             reset(ws);
+            return;
+          }
+          if (std::fabs(cte) > 2.) {
+            reset(ws);
+            std::cout << "cte: " << cte;
+            std::cout << "Kp: " << pid.Kp << " Ki: " << pid.Ki << " Kd: " << pid.Kd << std::endl;
+            std::cout << "New Kp: ";
+            std::cin >> pid.Kp;
+            std::cout << "New Ki: ";
+            std::cin >> pid.Ki;
+            std::cout << "New Kd: ";
+            std::cin >> pid.Kd;
+            time_step = 0;
+            total_speed = 0.;
             return;
           }
           pid.UpdateError(cte);
@@ -76,7 +116,7 @@ int main()
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
+          msgJson["throttle"] = .3;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           // std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
